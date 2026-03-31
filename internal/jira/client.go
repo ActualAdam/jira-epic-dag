@@ -115,7 +115,7 @@ func (c *Client) SearchOpenEpics(ctx context.Context, projectKeys []string) ([]*
 // SearchEpicChildren returns all child issues of the given epic key.
 func (c *Client) SearchEpicChildren(ctx context.Context, epicKey string) ([]*models.IssueSchemeV2, error) {
 	jql := fmt.Sprintf("parentEpic = %s ORDER BY status ASC, created ASC", epicKey)
-	fields := "summary,status,assignee,issuetype"
+	fields := "summary,status,assignee,issuetype,issuelinks"
 
 	var all []*models.IssueSchemeV2
 	startAt := 0

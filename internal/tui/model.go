@@ -19,6 +19,8 @@ const (
 	phaseSelectEpic
 	phaseLoadingTasks
 	phaseShowTasks
+	phaseGeneratingDAG
+	phaseShowDAG
 )
 
 var (
@@ -31,14 +33,15 @@ var (
 
 // Model holds all TUI state.
 type Model struct {
-	client      *jira.Client
-	phase       phase
-	projects    []app.Project
-	projCursor  int
-	epics       []app.Epic
-	epicCursor  int
-	tasks       []app.Task
-	err         error
+	client     *jira.Client
+	phase      phase
+	projects   []app.Project
+	projCursor int
+	epics      []app.Epic
+	epicCursor int
+	tasks      []app.Task
+	dagServer  *app.DAGServer
+	err        error
 }
 
 // NewModel creates the initial model.
@@ -58,6 +61,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
+			m.shutdownDAGServer()
 			return m, tea.Quit
 		case "esc":
 			return m.goBack()
@@ -67,6 +71,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.moveCursor(1)
 		case "enter":
 			return m.selectItem()
+		case "g":
+			if m.phase == phaseSelectEpic && len(m.epics) > 0 {
+				m.shutdownDAGServer()
+				m.phase = phaseGeneratingDAG
+				return m, app.GenerateDAG(m.client, m.epics[m.epicCursor])
+			}
 		}
 
 	case app.FetchProjectsMsg:
@@ -93,9 +103,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.tasks = msg.Tasks
 			m.phase = phaseShowTasks
 		}
+
+	case app.GenerateDAGMsg:
+		if msg.Err != nil {
+			m.err = msg.Err
+		} else {
+			m.dagServer = msg.Server
+			m.phase = phaseShowDAG
+		}
 	}
 
 	return m, nil
+}
+
+func (m *Model) shutdownDAGServer() {
+	if m.dagServer != nil {
+		m.dagServer.Shutdown()
+		m.dagServer = nil
+	}
 }
 
 func (m *Model) moveCursor(delta int) {
@@ -132,6 +157,9 @@ func (m Model) goBack() (tea.Model, tea.Cmd) {
 	case phaseShowTasks:
 		m.phase = phaseSelectEpic
 		m.tasks = nil
+	case phaseShowDAG:
+		m.shutdownDAGServer()
+		m.phase = phaseSelectEpic
 	}
 	return m, nil
 }
@@ -191,8 +219,11 @@ func (m Model) View() string {
 				)) + "\n")
 			}
 		}
-		b.WriteString("\n" + dimStyle.Render("↑/↓ move, enter select, esc back, q quit") + "\n")
+		b.WriteString("\n" + dimStyle.Render("↑/↓ move, enter select, g graph, esc back, q quit") + "\n")
 		return b.String()
+
+	case phaseGeneratingDAG:
+		return fmt.Sprintf("Generating DAG for %s...\n", m.epics[m.epicCursor].Key)
 
 	case phaseLoadingTasks:
 		return fmt.Sprintf("Loading tasks for %s...\n", m.epics[m.epicCursor].Key)
@@ -210,14 +241,29 @@ func (m Model) View() string {
 				if t.Assignee != "" {
 					assignee = t.Assignee
 				}
-				b.WriteString(fmt.Sprintf("%s  %s  [%s]  %s  %s\n",
+				blocked := ""
+				if len(t.BlockedBy) > 0 {
+					blocked = "  blocked by: " + strings.Join(t.BlockedBy, ", ")
+				}
+				b.WriteString(fmt.Sprintf("%s  %s  [%s]  %s  %s%s\n",
 					keyStyle.Render(t.Key),
 					t.Summary,
 					t.Status,
 					t.IssueType,
 					assignee,
+					dimStyle.Render(blocked),
 				))
 			}
+		}
+		b.WriteString("\n" + dimStyle.Render("esc back, q quit") + "\n")
+		return b.String()
+
+	case phaseShowDAG:
+		var b strings.Builder
+		epic := m.epics[m.epicCursor]
+		b.WriteString(titleStyle.Render(fmt.Sprintf("%s — %s", epic.Key, epic.Summary)) + "\n\n")
+		if m.dagServer != nil {
+			b.WriteString(fmt.Sprintf("DAG opened in browser: %s\n", m.dagServer.URL))
 		}
 		b.WriteString("\n" + dimStyle.Render("esc back, q quit") + "\n")
 		return b.String()
