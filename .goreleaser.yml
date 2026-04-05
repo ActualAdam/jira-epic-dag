@@ -1,3 +1,5 @@
+version: 2
+
 builds:
   - main: ./cmd/jira-epic-dag
     binary: jira-epic-dag
