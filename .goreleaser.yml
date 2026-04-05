@@ -1,0 +1,28 @@
+builds:
+  - main: ./cmd/jira-epic-dag
+    binary: jira-epic-dag
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - arm64
+      - amd64
+    goamd64:
+      - v1
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+
+archives:
+  - format: binary
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  github:
+    owner: ActualAdam
+    name: jira-epic-dag
+  generate_release_notes: true
