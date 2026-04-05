@@ -27,4 +27,3 @@ release:
   github:
     owner: ActualAdam
     name: jira-epic-dag
-  generate_release_notes: true
