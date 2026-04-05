@@ -18,7 +18,8 @@ builds:
       - -X main.version={{.Version}}
 
 archives:
-  - format: binary
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
 checksum:
   name_template: checksums.txt
@@ -27,3 +28,12 @@ release:
   github:
     owner: ActualAdam
     name: jira-epic-dag
+
+brews:
+  - repository:
+      owner: ActualAdam
+      name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/ActualAdam/jira-epic-dag
+    description: TUI app that visualizes Jira epic dependency graphs
+    license: MIT
